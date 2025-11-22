@@ -782,7 +782,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           const dist = Math.sqrt(dx*dx + dy*dy);
           
           if (dist < LOOT_COLLECTION_RANGE) {
-              const currentCargoTotal = Object.values(ship.cargo).reduce((a: number, b: number) => a+b, 0);
+              const currentCargoTotal = (Object.values(ship.cargo) as number[]).reduce((a: number, b: number) => a+b, 0);
               
               if (currentCargoTotal + loot.amount <= ship.shipConfig.maxCargo) {
                   // Full Collect
@@ -945,83 +945,152 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
         ctx.save();
         ctx.translate(STATION_POSITION.x, STATION_POSITION.y);
         
-        // Outer Ring (Rotating)
+        // Rotate the whole station components that move
         ctx.save();
         ctx.rotate(stationRotationRef.current);
         
         ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#00ff00';
         
-        // Main Ring
+        // 1. Outer Ring (Main Structure)
         ctx.beginPath();
         ctx.arc(0, 0, STATION_RADIUS, 0, Math.PI*2);
         ctx.stroke();
         
-        // Inner Ring Border
+        // 2. Inner Ring (Walkway)
         ctx.beginPath();
-        ctx.arc(0, 0, STATION_RADIUS - 20, 0, Math.PI*2);
+        ctx.arc(0, 0, STATION_RADIUS * 0.85, 0, Math.PI*2);
         ctx.stroke();
-        
-        // Spokes
-        const numSpokes = 8;
-        for(let i=0; i<numSpokes; i++) {
-            const angle = (i / numSpokes) * Math.PI * 2;
+
+        // 3. Truss Structure (Triangles connecting rings)
+        const numTruss = 12;
+        ctx.lineWidth = 1;
+        for(let i=0; i<numTruss; i++) {
+            const a1 = (i / numTruss) * Math.PI * 2;
+            const a2 = ((i + 0.5) / numTruss) * Math.PI * 2;
+            
+            const rOuter = STATION_RADIUS;
+            const rInner = STATION_RADIUS * 0.85;
+            
             ctx.beginPath();
-            ctx.moveTo(Math.cos(angle) * (STATION_RADIUS - 20), Math.sin(angle) * (STATION_RADIUS - 20));
-            ctx.lineTo(Math.cos(angle) * (STATION_RADIUS), Math.sin(angle) * (STATION_RADIUS));
+            ctx.moveTo(Math.cos(a1) * rInner, Math.sin(a1) * rInner);
+            ctx.lineTo(Math.cos(a2) * rOuter, Math.sin(a2) * rOuter);
+            ctx.lineTo(Math.cos(a1 + (Math.PI*2/numTruss)) * rInner, Math.sin(a1 + (Math.PI*2/numTruss)) * rInner);
             ctx.stroke();
         }
 
-        // Windows (Colored dashes)
-        const numWindows = 16;
+        // 4. Windows on Outer Ring
+        const numWindows = 24;
         for(let i=0; i<numWindows; i++) {
-            const angle = (i / numWindows) * Math.PI * 2 + (Math.PI / numWindows); // Offset from spokes
-            const wx = Math.cos(angle) * (STATION_RADIUS - 10);
-            const wy = Math.sin(angle) * (STATION_RADIUS - 10);
+            const angle = (i / numWindows) * Math.PI * 2;
+            const wx = Math.cos(angle) * (STATION_RADIUS - 5);
+            const wy = Math.sin(angle) * (STATION_RADIUS - 5);
             
             ctx.save();
             ctx.translate(wx, wy);
             ctx.rotate(angle);
-            ctx.fillStyle = i % 2 === 0 ? '#fbbf24' : '#06b6d4'; // Amber and Cyan windows
+            // Alternate amber/cyan
+            ctx.fillStyle = i % 2 === 0 ? '#fbbf24' : '#06b6d4'; 
             ctx.shadowColor = ctx.fillStyle;
             ctx.shadowBlur = 5;
-            ctx.fillRect(-4, -3, 8, 6);
+            ctx.fillRect(-2, -4, 4, 8);
             ctx.restore();
         }
-        
-        ctx.restore(); // End rotating ring
 
-        // Central Hub
+        // 5. Cargo Pods attached to Hub
+        const numPods = 6;
+        for(let i=0; i<numPods; i++) {
+            const angle = (i / numPods) * Math.PI * 2;
+            const dist = STATION_RADIUS * 0.5; // Halfway to edge
+            
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.translate(dist, 0);
+            
+            // Connector Strut
+            ctx.strokeStyle = '#006600';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(-30, 0); // Connect back to hub
+            ctx.lineTo(0, 0);
+            ctx.stroke();
+
+            // Pod Body
+            ctx.fillStyle = '#001100';
+            ctx.strokeStyle = '#00dd00';
+            ctx.lineWidth = 1;
+            ctx.shadowBlur = 2;
+            
+            ctx.beginPath();
+            // Hexagon pod
+            const podSize = 15;
+            for(let p=0; p<6; p++) {
+                const pa = p * Math.PI / 3;
+                const px = Math.cos(pa) * podSize;
+                const py = Math.sin(pa) * podSize * 0.6; // Squashed hex
+                if (p===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Pod Lights (Red blinking lights on pods)
+            const blink = Math.floor(Date.now() / 500) % 2 === 0;
+            if (blink) {
+                ctx.fillStyle = '#ef4444';
+                ctx.shadowColor = '#ef4444';
+                ctx.fillRect(-2, -2, 4, 4);
+            }
+
+            ctx.restore();
+        }
+
+        ctx.restore(); // End Rotating section
+
+        // 6. Central Hub
+        
+        ctx.save();
+        ctx.rotate(stationRotationRef.current); // Rotate with station
+
+        // Hub Circle
         ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.arc(0, 0, STATION_RADIUS * 0.4, 0, Math.PI*2);
-        ctx.fill();
-        
-        ctx.lineWidth = 4;
         ctx.strokeStyle = '#00ff00';
-        ctx.beginPath();
-        ctx.arc(0, 0, STATION_RADIUS * 0.4, 0, Math.PI*2);
-        ctx.stroke();
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 15;
         
-        // Structure lines on hub
+        ctx.beginPath();
+        ctx.arc(0, 0, STATION_RADIUS * 0.3, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner Hub Detail
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(0, 0, STATION_RADIUS * 0.2, 0, Math.PI*2);
+        ctx.arc(0, 0, STATION_RADIUS * 0.25, 0, Math.PI*2);
         ctx.stroke();
 
-        // Hull Number
+        // Text - Small, congruent
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#00ff00';
-        ctx.font = 'bold 24px monospace';
+        // Top Arc Text simulation or just lines
+        ctx.font = '10px monospace';
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText("STATION", 0, -10);
-        ctx.font = 'bold 40px monospace';
-        ctx.fillText("94", 0, 25);
+        ctx.textBaseline = 'bottom';
+        ctx.fillText("DOCKING BAY", 0, -10);
+        
+        ctx.font = 'bold 16px monospace';
+        ctx.textBaseline = 'top';
+        ctx.fillText("94", 0, -5);
 
-        ctx.restore();
+        // Bottom curved text simulation
+        ctx.font = '8px monospace';
+        ctx.fillText("RETRO-ROCKET STN", 0, 15);
+
+        ctx.restore(); // End Hub
+
+        ctx.restore(); // End Translation
       }
 
       // Draw Outposts
@@ -1465,7 +1534,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       ctx.textAlign = 'left';
       ctx.fillText(`FUEL: ${Math.floor(ship.currentFuel)}`, 20, height - 45);
       
-      const currentCargo = Object.values(ship.cargo).reduce((a: number, b: number) => a+b, 0);
+      const currentCargo = (Object.values(ship.cargo) as number[]).reduce((a: number, b: number) => a+b, 0);
       ctx.fillText(`CARGO: ${Math.floor(currentCargo)} / ${ship.shipConfig.maxCargo}`, 20, height - 70);
 
       if (distToStation < DOCKING_RANGE) {
