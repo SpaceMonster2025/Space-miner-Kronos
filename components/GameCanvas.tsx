@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { GameState, PlayerState, Asteroid, Point, MineralType, Particle, Loot, Alien } from '../types';
 import { 
@@ -139,11 +138,29 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       
       // Determine type based on distance rarity
       let type = MineralType.IRON;
+      let maxHealth = 100;
+      
       const rand = Math.random();
-      // Scale rarity distances for the larger world
-      if (dist > 30000 && rand > 0.8) type = MineralType.KRONOS;
-      else if (dist > 20000 && rand > 0.7) type = MineralType.GOLD;
-      else if (dist > 10000 && rand > 0.6) type = MineralType.SILICON;
+      
+      if (dist > 40000 && rand > 0.9) {
+          type = MineralType.KRONOS;
+          maxHealth = 300;
+      } else if (dist > 30000 && rand > 0.85) {
+          type = MineralType.URANIUM;
+          maxHealth = 150; // Volatile
+      } else if (dist > 20000 && rand > 0.8) {
+          type = MineralType.GOLD;
+          maxHealth = 150;
+      } else if (dist > 15000 && rand > 0.7) {
+          type = MineralType.TITANIUM;
+          maxHealth = 250; // Tough
+      } else if (dist > 10000 && rand > 0.6) {
+          type = MineralType.SILICON;
+          maxHealth = 120;
+      } else if (dist > 5000 && rand > 0.5) {
+          type = MineralType.COBALT;
+          maxHealth = 120;
+      }
 
       // Generate jagged vertices
       const radius = 20 + Math.random() * 40;
@@ -166,8 +183,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
         radius,
         vertices,
         type,
-        health: 100,
-        maxHealth: 100,
+        health: maxHealth,
+        maxHealth: maxHealth,
         rotation: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.02,
         isHeating: false
@@ -607,16 +624,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
                           const type = key as MineralType;
                           const amount = alien.stolenCargo[type] || 0;
                           if (amount > 0) {
-                              lootRef.current.push({
-                                  id: `loot-alien-${Date.now()}-${type}`,
-                                  x: alien.x,
-                                  y: alien.y,
-                                  vx: (Math.random() - 0.5) * 3,
-                                  vy: (Math.random() - 0.5) * 3,
-                                  type: type,
-                                  amount: amount,
-                                  life: LOOT_DESPAWN_TIME
-                              });
+                              // Spawn multi-drops for large amounts stolen
+                              const chunks = Math.ceil(amount / 3); // Max 3 per chunk roughly
+                              const amtPerChunk = Math.floor(amount / chunks);
+                              let remainder = amount % chunks;
+                              
+                              for(let i=0; i<chunks; i++) {
+                                  let amt = amtPerChunk;
+                                  if (remainder > 0) { amt++; remainder--; }
+                                  lootRef.current.push({
+                                      id: `loot-alien-${Date.now()}-${type}-${i}`,
+                                      x: alien.x,
+                                      y: alien.y,
+                                      vx: (Math.random() - 0.5) * 3,
+                                      vy: (Math.random() - 0.5) * 3,
+                                      type: type,
+                                      amount: amt,
+                                      life: LOOT_DESPAWN_TIME
+                                  });
+                              }
                           }
                       });
 
@@ -659,7 +685,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           }
       }
 
-      // Logic for Asteroid Mining (Copied/Refined from previous)
+      // Logic for Asteroid Mining
       if (miningTarget) {
           miningTarget.isHeating = true;
           miningTarget.health -= ship.shipConfig.miningPower;
@@ -683,17 +709,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           if (miningTarget.health <= 0) {
               soundManagerRef.current?.playExplosion();
               shakeRef.current = 15;
-              const lootAmount = Math.floor(miningTarget.radius / 5); 
-              lootRef.current.push({
-                  id: `loot-${Date.now()}`,
-                  x: miningTarget.x,
-                  y: miningTarget.y,
-                  vx: (Math.random() - 0.5) * 1.5,
-                  vy: (Math.random() - 0.5) * 1.5,
-                  type: miningTarget.type,
-                  amount: lootAmount,
-                  life: LOOT_DESPAWN_TIME
-              });
+              
+              const lootAmount = Math.max(1, Math.floor(miningTarget.radius / 5)); 
+              
+              // Multi-Drop Logic
+              const numDrops = Math.min(lootAmount, 3 + Math.floor(Math.random() * 3)); // 3 to 5 drops max
+              const amountPerDrop = Math.floor(lootAmount / numDrops);
+              let remainder = lootAmount % numDrops;
+
+              for(let i=0; i<numDrops; i++) {
+                let amt = amountPerDrop;
+                if (remainder > 0) { amt++; remainder--; }
+                if (amt > 0) {
+                    lootRef.current.push({
+                        id: `loot-${Date.now()}-${i}`,
+                        x: miningTarget.x,
+                        y: miningTarget.y,
+                        vx: (Math.random() - 0.5) * 2.5, // Explode outward
+                        vy: (Math.random() - 0.5) * 2.5,
+                        type: miningTarget.type,
+                        amount: amt,
+                        life: LOOT_DESPAWN_TIME
+                    });
+                }
+              }
+
               // Shatter effects...
               for(let k=0; k<8; k++) {
                   particlesRef.current.push({
@@ -742,28 +782,33 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           const dist = Math.sqrt(dx*dx + dy*dy);
           
           if (dist < LOOT_COLLECTION_RANGE) {
-              const currentCargoTotal = Object.values(ship.cargo).reduce((a,b) => a+b, 0);
+              const currentCargoTotal = Object.values(ship.cargo).reduce((a: number, b: number) => a+b, 0);
               
               if (currentCargoTotal + loot.amount <= ship.shipConfig.maxCargo) {
-                  // Collect
+                  // Full Collect
                   ship.cargo[loot.type] = (ship.cargo[loot.type] || 0) + loot.amount;
-                  loot.life = 0; // Remove
-                  
-                  // Play Collect Sound
+                  loot.life = 0; 
                   soundManagerRef.current?.playCollect();
-                  
-                  // Visual Feedback (Floating Text)
                   particlesRef.current.push({
-                      x: loot.x,
-                      y: loot.y,
-                      vx: 0, vy: -1,
-                      life: 60, maxLife: 60,
-                      color: '#aaffaa',
-                      size: 0,
+                      x: loot.x, y: loot.y, vx: 0, vy: -1,
+                      life: 60, maxLife: 60, color: '#aaffaa', size: 0,
                       text: `+${loot.amount} ${loot.type}`
                   });
               } else {
-                  // Full
+                  // Partial Collect
+                  const space = ship.shipConfig.maxCargo - currentCargoTotal;
+                  if (space > 0) {
+                      ship.cargo[loot.type] = (ship.cargo[loot.type] || 0) + space;
+                      loot.amount -= space; // Reduce loot amount on ground
+                      soundManagerRef.current?.playCollect();
+                      particlesRef.current.push({
+                        x: loot.x, y: loot.y, vx: 0, vy: -1,
+                        life: 60, maxLife: 60, color: '#aaffaa', size: 0,
+                        text: `+${space} ${loot.type}`
+                    });
+                  }
+
+                  // Full Warning
                   if (Math.random() < 0.05) {
                       particlesRef.current.push({
                           x: loot.x,
@@ -1166,6 +1211,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
               ctx.moveTo(0, -6); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.fill();
           } else if (loot.type === MineralType.GOLD) {
               ctx.moveTo(0, -6); ctx.lineTo(6, 0); ctx.lineTo(0, 6); ctx.lineTo(-6, 0); ctx.fill();
+          } else if (loot.type === MineralType.TITANIUM) {
+               ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
+          } else if (loot.type === MineralType.COBALT) {
+               ctx.rect(-3, -6, 6, 12); ctx.fill();
+          } else if (loot.type === MineralType.URANIUM) {
+               ctx.moveTo(0, -6); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.fill();
           } else {
               for(let i=0; i<6; i++) {
                   const ang = i * Math.PI/3;
@@ -1414,7 +1465,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       ctx.textAlign = 'left';
       ctx.fillText(`FUEL: ${Math.floor(ship.currentFuel)}`, 20, height - 45);
       
-      const currentCargo = Object.values(ship.cargo).reduce((a,b) => a+b, 0);
+      const currentCargo = Object.values(ship.cargo).reduce((a: number, b: number) => a+b, 0);
       ctx.fillText(`CARGO: ${Math.floor(currentCargo)} / ${ship.shipConfig.maxCargo}`, 20, height - 70);
 
       if (distToStation < DOCKING_RANGE) {

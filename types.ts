@@ -8,8 +8,11 @@ export enum GameState {
 
 export enum MineralType {
   IRON = 'Iron',
+  COBALT = 'Cobalt',
   SILICON = 'Silicon',
+  TITANIUM = 'Titanium',
   GOLD = 'Gold',
+  URANIUM = 'Uranium',
   KRONOS = 'Kronos Crystal'
 }
 

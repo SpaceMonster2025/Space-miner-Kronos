@@ -43,15 +43,21 @@ export const OUTPOST_CONFIG = {
 
 export const MINERAL_VALUES: Record<MineralType, number> = {
   [MineralType.IRON]: 10,
+  [MineralType.COBALT]: 20,
   [MineralType.SILICON]: 25,
+  [MineralType.TITANIUM]: 60,
   [MineralType.GOLD]: 100,
+  [MineralType.URANIUM]: 200,
   [MineralType.KRONOS]: 500,
 };
 
 export const MINERAL_COLORS: Record<MineralType, string> = {
   [MineralType.IRON]: '#a3a3a3', // Grey
-  [MineralType.SILICON]: '#60a5fa', // Blue
+  [MineralType.COBALT]: '#3b82f6', // Blue
+  [MineralType.SILICON]: '#60a5fa', // Light Blue
+  [MineralType.TITANIUM]: '#f3f4f6', // White
   [MineralType.GOLD]: '#fbbf24', // Gold
+  [MineralType.URANIUM]: '#22c55e', // Green
   [MineralType.KRONOS]: '#d946ef', // Magenta
 };
 

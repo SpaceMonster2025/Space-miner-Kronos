@@ -14,8 +14,11 @@ const App: React.FC = () => {
     currentFuel: INITIAL_SHIP_CONFIG.maxFuel,
     cargo: {
       [MineralType.IRON]: 0,
+      [MineralType.COBALT]: 0,
       [MineralType.SILICON]: 0,
+      [MineralType.TITANIUM]: 0,
       [MineralType.GOLD]: 0,
+      [MineralType.URANIUM]: 0,
       [MineralType.KRONOS]: 0,
     },
     shipConfig: INITIAL_SHIP_CONFIG,
@@ -63,8 +66,11 @@ const App: React.FC = () => {
       currentFuel: INITIAL_SHIP_CONFIG.maxFuel,
       cargo: {
         [MineralType.IRON]: 0,
+        [MineralType.COBALT]: 0,
         [MineralType.SILICON]: 0,
+        [MineralType.TITANIUM]: 0,
         [MineralType.GOLD]: 0,
+        [MineralType.URANIUM]: 0,
         [MineralType.KRONOS]: 0,
       },
       shipConfig: INITIAL_SHIP_CONFIG,

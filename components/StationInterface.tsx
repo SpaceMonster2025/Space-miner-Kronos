@@ -83,7 +83,7 @@ export const StationInterface: React.FC<StationInterfaceProps> = ({ playerState,
   const fuelMissing = playerState.shipConfig.maxFuel - playerState.currentFuel;
   const refuelCost = Math.ceil(fuelMissing * 0.1);
 
-  const totalCargoCount = Object.values(playerState.cargo).reduce((a, b) => a + b, 0);
+  const totalCargoCount = Object.values(playerState.cargo).reduce((a: number, b: number) => a + b, 0);
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/90 text-green-500 font-mono p-4">
