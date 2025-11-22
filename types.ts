@@ -51,13 +51,15 @@ export interface Particle {
   text?: string; // For floating text effects
 }
 
+export type LootType = MineralType | 'FUEL';
+
 export interface Loot {
   id: string;
   x: number;
   y: number;
   vx: number;
   vy: number;
-  type: MineralType;
+  type: LootType;
   amount: number;
   life: number;
 }

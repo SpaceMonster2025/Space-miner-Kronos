@@ -630,13 +630,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
                       soundManagerRef.current?.stopAlienHum();
                       shakeRef.current = 20;
 
-                      // Drop stolen cargo
+                      // 1. Drop stolen cargo
                       Object.keys(alien.stolenCargo).forEach(key => {
                           const type = key as MineralType;
                           const amount = alien.stolenCargo[type] || 0;
                           if (amount > 0) {
-                              // Spawn multi-drops for large amounts stolen
-                              const chunks = Math.ceil(amount / 3); // Max 3 per chunk roughly
+                              const chunks = Math.ceil(amount / 3); 
                               const amtPerChunk = Math.floor(amount / chunks);
                               let remainder = amount % chunks;
                               
@@ -655,6 +654,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
                                   });
                               }
                           }
+                      });
+
+                      // 2. Drop Fuel Loot
+                      lootRef.current.push({
+                          id: `loot-alien-fuel-${Date.now()}`,
+                          x: alien.x, y: alien.y,
+                          vx: (Math.random() - 0.5) * 4,
+                          vy: (Math.random() - 0.5) * 4,
+                          type: 'FUEL',
+                          amount: 200 + Math.floor(Math.random() * 200), // 200-400 fuel
+                          life: LOOT_DESPAWN_TIME
+                      });
+
+                      // 3. Drop Random Mineral Loot (Rare)
+                      const rareMinerals = [MineralType.TITANIUM, MineralType.GOLD, MineralType.URANIUM, MineralType.KRONOS];
+                      const randomType = rareMinerals[Math.floor(Math.random() * rareMinerals.length)];
+                      lootRef.current.push({
+                        id: `loot-alien-rare-${Date.now()}`,
+                        x: alien.x, y: alien.y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        type: randomType,
+                        amount: 3 + Math.floor(Math.random() * 5), // 3-7 units
+                        life: LOOT_DESPAWN_TIME
                       });
 
                       // Explosion Particles
@@ -793,43 +816,64 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           const dist = Math.sqrt(dx*dx + dy*dy);
           
           if (dist < LOOT_COLLECTION_RANGE) {
-              const currentCargoTotal = (Object.values(ship.cargo) as number[]).reduce((a: number, b: number) => a+b, 0);
-              
-              if (currentCargoTotal + loot.amount <= ship.shipConfig.maxCargo) {
-                  // Full Collect
-                  ship.cargo[loot.type] = (ship.cargo[loot.type] || 0) + loot.amount;
-                  loot.life = 0; 
-                  soundManagerRef.current?.playCollect();
-                  particlesRef.current.push({
-                      x: loot.x, y: loot.y, vx: 0, vy: -1,
-                      life: 60, maxLife: 60, color: '#aaffaa', size: 0,
-                      text: `+${loot.amount} ${loot.type}`
-                  });
-              } else {
-                  // Partial Collect
-                  const space = ship.shipConfig.maxCargo - currentCargoTotal;
-                  if (space > 0) {
-                      ship.cargo[loot.type] = (ship.cargo[loot.type] || 0) + space;
-                      loot.amount -= space; // Reduce loot amount on ground
+              if (loot.type === 'FUEL') {
+                  // Fuel logic
+                  const missing = ship.shipConfig.maxFuel - ship.currentFuel;
+                  if (missing > 0) {
+                      const take = Math.min(missing, loot.amount);
+                      ship.currentFuel += take;
+                      loot.amount -= take;
+                      if (loot.amount <= 0) loot.life = 0;
+                      
                       soundManagerRef.current?.playCollect();
                       particlesRef.current.push({
-                        x: loot.x, y: loot.y, vx: 0, vy: -1,
-                        life: 60, maxLife: 60, color: '#aaffaa', size: 0,
-                        text: `+${space} ${loot.type}`
-                    });
-                  }
-
-                  // Full Warning
-                  if (Math.random() < 0.05) {
-                      particlesRef.current.push({
-                          x: loot.x,
-                          y: loot.y,
-                          vx: 0, vy: -0.5,
-                          life: 40, maxLife: 40,
-                          color: '#ef4444',
-                          size: 0,
-                          text: 'CARGO FULL'
+                          x: loot.x, y: loot.y, vx: 0, vy: -1,
+                          life: 60, maxLife: 60, color: '#fbbf24', size: 0,
+                          text: `REFUEL +${take}`
                       });
+                  }
+              } else {
+                  // Mineral Logic
+                  const currentCargoTotal = (Object.values(ship.cargo) as number[]).reduce((a: number, b: number) => a+b, 0);
+                  
+                  if (currentCargoTotal + loot.amount <= ship.shipConfig.maxCargo) {
+                      // Full Collect
+                      const type = loot.type as MineralType;
+                      ship.cargo[type] = (ship.cargo[type] || 0) + loot.amount;
+                      loot.life = 0; 
+                      soundManagerRef.current?.playCollect();
+                      particlesRef.current.push({
+                          x: loot.x, y: loot.y, vx: 0, vy: -1,
+                          life: 60, maxLife: 60, color: '#aaffaa', size: 0,
+                          text: `+${loot.amount} ${loot.type}`
+                      });
+                  } else {
+                      // Partial Collect
+                      const space = ship.shipConfig.maxCargo - currentCargoTotal;
+                      if (space > 0) {
+                          const type = loot.type as MineralType;
+                          ship.cargo[type] = (ship.cargo[type] || 0) + space;
+                          loot.amount -= space; // Reduce loot amount on ground
+                          soundManagerRef.current?.playCollect();
+                          particlesRef.current.push({
+                            x: loot.x, y: loot.y, vx: 0, vy: -1,
+                            life: 60, maxLife: 60, color: '#aaffaa', size: 0,
+                            text: `+${space} ${loot.type}`
+                        });
+                      }
+
+                      // Full Warning
+                      if (Math.random() < 0.05) {
+                          particlesRef.current.push({
+                              x: loot.x,
+                              y: loot.y,
+                              vx: 0, vy: -0.5,
+                              life: 40, maxLife: 40,
+                              color: '#ef4444',
+                              size: 0,
+                              text: 'CARGO FULL'
+                          });
+                      }
                   }
               }
           }
@@ -1337,40 +1381,65 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       lootRef.current.forEach(loot => {
           if (loot.x < viewX - 50 || loot.x > viewX + viewW + 50 || loot.y < viewY - 50 || loot.y > viewY + viewH + 50) return;
 
-          const color = MINERAL_COLORS[loot.type];
-          ctx.fillStyle = color;
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 15;
-          ctx.save();
-          ctx.translate(loot.x, loot.y);
-          ctx.beginPath();
-          if (loot.type === MineralType.IRON) {
-              ctx.fillRect(-4, -4, 8, 8);
-          } else if (loot.type === MineralType.SILICON) {
-              ctx.moveTo(0, -6); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.fill();
-          } else if (loot.type === MineralType.GOLD) {
-              ctx.moveTo(0, -6); ctx.lineTo(6, 0); ctx.lineTo(0, 6); ctx.lineTo(-6, 0); ctx.fill();
-          } else if (loot.type === MineralType.TITANIUM) {
-               ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
-          } else if (loot.type === MineralType.COBALT) {
-               ctx.rect(-3, -6, 6, 12); ctx.fill();
-          } else if (loot.type === MineralType.URANIUM) {
-               ctx.moveTo(0, -6); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.fill();
+          if (loot.type === 'FUEL') {
+             const color = '#fbbf24'; // Amber
+             ctx.fillStyle = color;
+             ctx.shadowColor = color;
+             ctx.shadowBlur = 15;
+             ctx.save();
+             ctx.translate(loot.x, loot.y);
+             // Fuel Canister Shape
+             ctx.beginPath();
+             ctx.rect(-4, -6, 8, 12); // Body
+             ctx.rect(-2, -8, 4, 2); // Cap
+             ctx.fill();
+             
+             ctx.fillStyle = '#000';
+             ctx.beginPath();
+             ctx.moveTo(0, -4); ctx.lineTo(0, 4); ctx.stroke(); // Detail line
+
+             ctx.shadowBlur = 0;
+             ctx.fillStyle = '#ffffff';
+             ctx.font = '10px monospace';
+             ctx.textAlign = 'center';
+             ctx.fillText(`FUEL`, 0, -12);
+             ctx.restore();
           } else {
-              for(let i=0; i<6; i++) {
-                  const ang = i * Math.PI/3;
-                  const lx = Math.cos(ang)*5;
-                  const ly = Math.sin(ang)*5;
-                  if (i===0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+              const color = MINERAL_COLORS[loot.type];
+              ctx.fillStyle = color;
+              ctx.shadowColor = color;
+              ctx.shadowBlur = 15;
+              ctx.save();
+              ctx.translate(loot.x, loot.y);
+              ctx.beginPath();
+              if (loot.type === MineralType.IRON) {
+                  ctx.fillRect(-4, -4, 8, 8);
+              } else if (loot.type === MineralType.SILICON) {
+                  ctx.moveTo(0, -6); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.fill();
+              } else if (loot.type === MineralType.GOLD) {
+                  ctx.moveTo(0, -6); ctx.lineTo(6, 0); ctx.lineTo(0, 6); ctx.lineTo(-6, 0); ctx.fill();
+              } else if (loot.type === MineralType.TITANIUM) {
+                   ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
+              } else if (loot.type === MineralType.COBALT) {
+                   ctx.rect(-3, -6, 6, 12); ctx.fill();
+              } else if (loot.type === MineralType.URANIUM) {
+                   ctx.moveTo(0, -6); ctx.lineTo(5, 3); ctx.lineTo(-5, 3); ctx.fill();
+              } else {
+                  for(let i=0; i<6; i++) {
+                      const ang = i * Math.PI/3;
+                      const lx = Math.cos(ang)*5;
+                      const ly = Math.sin(ang)*5;
+                      if (i===0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+                  }
+                  ctx.fill();
               }
-              ctx.fill();
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = '#ffffff';
+              ctx.font = '10px monospace';
+              ctx.textAlign = 'center';
+              ctx.fillText(`${loot.type} [${loot.amount}]`, 0, -12);
+              ctx.restore();
           }
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '10px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${loot.type} [${loot.amount}]`, 0, -12);
-          ctx.restore();
       });
 
       // Draw Particles
