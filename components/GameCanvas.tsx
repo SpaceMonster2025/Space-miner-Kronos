@@ -65,7 +65,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
 
   // --- Initialization ---
   useEffect(() => {
-    shipRef.current = initialPlayerState;
+    shipRef.current = { ...initialPlayerState }; // Ensure fresh copy
+    
+    // Only regenerate world if asteroids are empty (first load or reset)
+    // Actually for a new "Launch" we probably keep the world persistent? 
+    // The prompt implies "Missions" but usually rogue-lites keep the world or regen it.
+    // For now, let's regenerate asteroids if empty, otherwise keep them to simulate persistence within session?
+    // User requested "Launch again to venture deeper", implies same world or new world. 
+    // Let's regenerate world on every mount of GameCanvas (which happens on Launch) to be safe and simple.
+    
     lootRef.current = [];
     particlesRef.current = [];
     alienRef.current = null;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlayerState, MineralType, GameState } from '../types';
+import { PlayerState, MineralType } from '../types';
 import { MINERAL_VALUES, MINERAL_COLORS, INITIAL_SHIP_CONFIG, UPGRADE_COST_BASE, UPGRADE_COST_MULTIPLIER } from '../constants';
 
 interface StationInterfaceProps {
@@ -22,14 +22,22 @@ export const StationInterface: React.FC<StationInterfaceProps> = ({ playerState,
   const sellAll = () => {
     let totalValue = 0;
     const newCargo = { ...playerState.cargo };
+    let totalItems = 0;
+
     (Object.keys(newCargo) as MineralType[]).forEach(type => {
-      totalValue += newCargo[type] * MINERAL_VALUES[type];
-      newCargo[type] = 0;
+      const amount = newCargo[type];
+      if (amount > 0) {
+        totalValue += amount * MINERAL_VALUES[type];
+        totalItems += amount;
+        newCargo[type] = 0;
+      }
     });
 
     setPlayerState(prev => ({
       ...prev,
       credits: prev.credits + totalValue,
+      lifetimeEarnings: prev.lifetimeEarnings + totalValue, // Add to score
+      totalCargoDelivered: prev.totalCargoDelivered + totalItems, // Track stat
       cargo: newCargo,
       currentFuel: prev.shipConfig.maxFuel // Refuel on dock logic? Or make it paid? Let's make refuel paid but cheap.
     }));
@@ -96,6 +104,7 @@ export const StationInterface: React.FC<StationInterfaceProps> = ({ playerState,
           </div>
           <div className="text-right">
             <p className="text-2xl text-yellow-400 retro-glow-amber">CREDITS: {Math.floor(playerState.credits)}</p>
+            <p className="text-xs text-green-700">LIFETIME EARNINGS: {Math.floor(playerState.lifetimeEarnings)}</p>
           </div>
         </div>
 

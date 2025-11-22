@@ -3,7 +3,8 @@ export enum GameState {
   START = 'START',
   PLAYING = 'PLAYING',
   DOCKED = 'DOCKED',
-  GAMEOVER = 'GAMEOVER'
+  GAMEOVER = 'GAMEOVER',
+  HIGHSCORE_ENTRY = 'HIGHSCORE_ENTRY' // New state for entering name
 }
 
 export enum MineralType {
@@ -90,6 +91,9 @@ export interface ShipConfig {
 
 export interface PlayerState {
   credits: number;
+  lifetimeEarnings: number; // Score
+  totalCargoDelivered: number; // Stat
+  missionsCompleted: number; // Stat
   currentFuel: number;
   cargo: { [key in MineralType]: number };
   shipConfig: ShipConfig;
@@ -102,4 +106,12 @@ export interface UpgradeCost {
   level: number;
   cost: number;
   value: number; // The actual stat value
+}
+
+export interface HighScore {
+  name: string;
+  score: number;
+  missions: number;
+  cargo: number;
+  date: string;
 }
