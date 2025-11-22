@@ -41,6 +41,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
   const lootRef = useRef<Loot[]>([]);
   const shakeRef = useRef(0); // Screen shake intensity
   const stationRotationRef = useRef(0); // Station animation
+  const outpostRotationRef = useRef(0); // Outpost animation
   
   // Outpost Interaction State (Local UI)
   const [activeOutpost, setActiveOutpost] = useState<{x: number, y: number, distance: number} | null>(null);
@@ -70,6 +71,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
     alienRef.current = null;
     shakeRef.current = 0;
     stationRotationRef.current = 0;
+    outpostRotationRef.current = 0;
     setActiveOutpost(null);
     
     // Init Audio
@@ -323,6 +325,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       
       // Station Animation
       stationRotationRef.current += 0.002;
+      outpostRotationRef.current -= 0.005; // Opposite rotate for variety
 
       // Rotation (A/D or Left/Right)
       if (keysRef.current['KeyA'] || keysRef.current['ArrowLeft']) ship.rotation -= ship.shipConfig.rotationSpeed;
@@ -1098,28 +1101,87 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
           // Culling
           if (op.x < viewX - 100 || op.x > viewX + viewW + 100 || op.y < viewY - 100 || op.y > viewY + viewH + 100) return;
           
+          ctx.save();
+          ctx.translate(op.x, op.y);
+
+          // Visual Style: Detailed Space Buoy
+          
+          // 1. Rotating Arms
+          ctx.save();
+          ctx.rotate(outpostRotationRef.current);
+          
           ctx.strokeStyle = OUTPOST_CONFIG.COLOR;
-          ctx.fillStyle = '#000';
           ctx.lineWidth = 2;
           ctx.shadowColor = OUTPOST_CONFIG.COLOR;
           ctx.shadowBlur = 5;
           
-          const r = OUTPOST_CONFIG.RADIUS;
-          ctx.beginPath();
-          for(let i=0; i<6; i++) {
-              const a = (i/6) * Math.PI * 2;
-              const px = op.x + Math.cos(a) * r;
-              const py = op.y + Math.sin(a) * r;
-              if (i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          for(let i=0; i<3; i++) {
+            ctx.rotate(Math.PI * 2 / 3);
+            
+            // Arm
+            ctx.beginPath();
+            ctx.moveTo(10, 0);
+            ctx.lineTo(OUTPOST_CONFIG.RADIUS, 0);
+            ctx.stroke();
+            
+            // End Node (Hexagon)
+            const nodeSize = 10;
+            ctx.save();
+            ctx.translate(OUTPOST_CONFIG.RADIUS, 0);
+            ctx.beginPath();
+            for(let h=0; h<6; h++) {
+                const ha = h * Math.PI/3;
+                const hx = Math.cos(ha) * nodeSize;
+                const hy = Math.sin(ha) * nodeSize;
+                if(h===0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            ctx.stroke();
+            
+            // Light on Node
+            const blink = Math.floor(Date.now() / 300) % 2 === 0;
+            if (blink) {
+                ctx.fillStyle = OUTPOST_CONFIG.COLOR;
+                ctx.beginPath(); ctx.arc(0,0, 3, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
           }
-          ctx.closePath();
+          ctx.restore();
+
+          // 2. Central Core (Fuel Tank)
+          ctx.fillStyle = '#000';
+          ctx.strokeStyle = OUTPOST_CONFIG.COLOR;
+          ctx.beginPath();
+          ctx.arc(0, 0, 15, 0, Math.PI*2);
           ctx.fill();
           ctx.stroke();
 
+          // Inner Icon (Fuel Drop / Triangle)
           ctx.fillStyle = OUTPOST_CONFIG.COLOR;
-          ctx.font = '14px monospace';
+          ctx.beginPath();
+          ctx.moveTo(0, -8);
+          ctx.lineTo(6, 4);
+          ctx.lineTo(-6, 4);
+          ctx.fill();
+
+          // Label
+          ctx.fillStyle = OUTPOST_CONFIG.COLOR;
+          ctx.font = '12px monospace';
           ctx.textAlign = 'center';
-          ctx.fillText(`OUTPOST ${idx+1}`, op.x, op.y + r + 20);
+          ctx.fillText(`OUTPOST ${idx+1}`, 0, OUTPOST_CONFIG.RADIUS + 20);
+
+          // Docking Zone Ring
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.arc(0, 0, OUTPOST_CONFIG.RADIUS * 1.5, 0, Math.PI*2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.restore();
       });
 
       // Draw Asteroids
@@ -1487,37 +1549,78 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, onDock, onGam
       ctx.fillStyle = '#fff';
       ctx.fillRect(radarX-1, radarY-1, 3, 3);
 
-      // --- Home Arrow ---
-      // Only show if station is far away
+      // --- Navigation Arrows ---
+      
+      // 1. Home Station Arrow (Only if far)
       if (distToStation > 500) {
-        const angleToStation = Math.atan2(STATION_POSITION.y - ship.position.y, STATION_POSITION.x - ship.position.x);
-        const arrowDistFromCenter = Math.min(width, height) * 0.4; 
+        const angle = Math.atan2(STATION_POSITION.y - ship.position.y, STATION_POSITION.x - ship.position.x);
+        const hudR = Math.min(width, height) * 0.4;
         
-        // Position on HUD (relative to center screen)
-        const arrowHUDX = width / 2 + Math.cos(angleToStation) * arrowDistFromCenter;
-        const arrowHUDY = height / 2 + Math.sin(angleToStation) * arrowDistFromCenter;
+        const ax = width / 2 + Math.cos(angle) * hudR;
+        const ay = height / 2 + Math.sin(angle) * hudR;
         
         ctx.save();
-        ctx.translate(arrowHUDX, arrowHUDY);
-        ctx.rotate(angleToStation);
-        
+        ctx.translate(ax, ay);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#00ff00';
         ctx.shadowColor = '#00ff00';
         ctx.shadowBlur = 5;
-        ctx.fillStyle = '#00ff00';
-        ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-10, 10);
-        ctx.lineTo(-10, -10);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-10, 8); ctx.lineTo(-10, -8); ctx.fill();
         
-        // Distance Text
-        ctx.rotate(-angleToStation); // Reset rotation for text
-        ctx.fillStyle = '#00ff00';
+        ctx.rotate(-angle);
         ctx.font = '12px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`HOME ${Math.round(distToStation)}m`, 0, 25);
         ctx.restore();
       }
+
+      // 2. Nearest Outpost Arrow
+      // Find closest outpost
+      let closestOp = null;
+      let minOpDist = Infinity;
+      
+      outpostsRef.current.forEach(op => {
+          const dx = op.x - ship.position.x;
+          const dy = op.y - ship.position.y;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          if (d < minOpDist) {
+              minOpDist = d;
+              closestOp = op;
+          }
+      });
+
+      // Draw pointer if closest exists and is off-screen-ish (prevent overlap with actual outpost drawing if close)
+      if (closestOp && minOpDist > 300) {
+          const dx = closestOp.x - ship.position.x;
+          const dy = closestOp.y - ship.position.y;
+          const angle = Math.atan2(dy, dx);
+          const hudR = Math.min(width, height) * 0.4;
+          
+          const ax = width / 2 + Math.cos(angle) * hudR;
+          const ay = height / 2 + Math.sin(angle) * hudR;
+          
+          ctx.save();
+          ctx.translate(ax, ay);
+          ctx.rotate(angle);
+          
+          ctx.fillStyle = OUTPOST_CONFIG.COLOR;
+          ctx.shadowColor = OUTPOST_CONFIG.COLOR;
+          ctx.shadowBlur = 5;
+          // Chevron style
+          ctx.beginPath(); 
+          ctx.moveTo(8, 0); ctx.lineTo(-4, 6); ctx.lineTo(-4, 2); ctx.lineTo(-12, 2); 
+          ctx.lineTo(-12, -2); ctx.lineTo(-4, -2); ctx.lineTo(-4, -6); 
+          ctx.fill();
+          
+          ctx.rotate(-angle);
+          ctx.font = '10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`NEAREST OUTPOST`, 0, 18);
+          ctx.fillText(`${Math.round(minOpDist)}m`, 0, 30);
+          
+          ctx.restore();
+      }
+
 
       // Gauges
       const fuelPct = ship.currentFuel / ship.shipConfig.maxFuel;
